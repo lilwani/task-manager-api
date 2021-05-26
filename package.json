@@ -4,7 +4,7 @@
   "description": "API leveraging node and express to handle requests from Task Manager App",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon app.js"
+    "start": "node app.js"
   },
   "author": "",
   "license": "ISC",
