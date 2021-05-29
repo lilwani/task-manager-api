@@ -5,7 +5,8 @@ const { List, Task, User } = require("./Database/models/all-models")
 const bodyParser = require('body-parser')
 const jwt = require('jsonwebtoken')
 
-const mongoose = require('./Database/mongoose')
+const mongoose = require('./Database/mongoose');
+const { remove } = require("./Database/models/list-model");
 
 const port = process.env.PORT || 3000
 
@@ -40,32 +41,31 @@ let authenticate = (req, res, next) => {
 
 // Get all lists
 app.get('/lists', authenticate, (req, res) => {
-    List.find().then((lists) => {
+    List.find({
+        // _userId : req.user_id
+    }).then((lists) => {
         if (lists == null) {
-            console.log("--The list is empty--\n")
             res.send('The list is empty')
         } else {
-            console.log("--Get List works--")
-            //console.log(lists+"\n")
             res.send(lists)
         }
     }).catch("Error in processing request GET:/lists");
 })
 
 // Create new list
-app.post('/lists', (req, res) => {
+app.post('/lists', authenticate, (req, res) => {
     let title = req.body.title;
-
-    List.create({ title }).then((listDoc) => {
-        console.log("--Post list works--")
-        //console.log(listDoc)
+    List.create({ 
+        title, 
+        _userId : req.user_id
+    }).then((listDoc) => {
         res.send(listDoc)
     }).catch("Error in processing request POST:/lists");
 })
 
 // Update the list
-app.patch('/lists/:id', (req, res) => {
-    List.findOneAndUpdate({ _id: req.params.id }, {
+app.patch('/lists/:id', authenticate, (req, res) => {
+    List.findOneAndUpdate({ _id: req.params.id, _userId : req.user_id }, {
         $set: req.body
     }).then(() => {
         console.log("--List entry has been updated--\n");
@@ -74,11 +74,13 @@ app.patch('/lists/:id', (req, res) => {
 })
 
 // Delete the list
-app.delete('/lists/:id', (req, res) => {
-    List.findOneAndRemove({ _id: req.params.id }).then((removedDoc) => {
-        console.log("--Deletion of the list was successfull--")
-        //console.log(removedDoc+"\n")
+app.delete('/lists/:id', authenticate, (req, res) => {
+    List.findOneAndRemove({ 
+        _id: req.params.id,
+        _userId : req.user_id
+    }).then((removedDoc) => {
         res.send(removedDoc)
+        deleteAllTasks(removedDoc.id)
     }).catch((err) => {
         res.send(err)
     })
@@ -94,8 +96,6 @@ app.get('/lists/:listid/tasks', (req, res) => {
     Task.find({
         _listID: req.params.listid
     }).then((theTasks) => {
-        console.log("--Tasks for the associated List ID have been retrieved--")
-        console.log(theTasks + "\n")
         res.send(theTasks)
     }).catch((err) => {
         console.log("The Get Task request didn't go throught !")
@@ -217,6 +217,17 @@ app.post('/users/login', (req, res) => {
         res.status(400).send(e);
     });
 })
+
+
+// Helper method to delete all tasks from a specific list
+
+let deleteAllTasks = (listID) =>{
+    Task.deleteMany({
+        _listID : listID
+    }).then(()=>{
+        console.log("Tasks from the "+ listID +" list have been removed")
+    })
+}
 
 
 app.listen(port, () => console.log("Node/Express server running on port 3000"));
