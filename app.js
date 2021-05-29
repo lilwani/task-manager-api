@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken')
 
 const mongoose = require('./Database/mongoose')
 
+const port = process.env.PORT || 3000
 
 // Loading body parser middleware
 app.use(bodyParser.json());
@@ -38,7 +39,7 @@ let authenticate = (req, res, next) => {
 // List routes below
 
 // Get all lists
-app.get('/lists', (req, res) => {
+app.get('/lists', authenticate, (req, res) => {
     List.find().then((lists) => {
         if (lists == null) {
             console.log("--The list is empty--\n")
@@ -218,4 +219,4 @@ app.post('/users/login', (req, res) => {
 })
 
 
-app.listen(3000, () => console.log("Node/Express server running on port 3000"));
+app.listen(port, () => console.log("Node/Express server running on port 3000"));
