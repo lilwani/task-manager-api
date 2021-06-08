@@ -87,7 +87,7 @@ UserSchema.methods.createSession=function(){
 
 //Called upon User model and not the user instance / object much like the defined create(), find(), save() methods in MongoDB
 
-UserSchema.statics.findByIDandToken =function(_id, token){
+UserSchema.statics.findByIDandToken = function(_id, token){
     const User = this
 
     return User.findOne({

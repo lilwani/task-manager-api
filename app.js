@@ -23,6 +23,7 @@ app.use(function (req, res, next) {
     next();
 });
 
+
 // Check if request has valid jwt token
 let authenticate = (req, res, next) => {
     let token = req.header('x-access-token')
@@ -37,12 +38,67 @@ let authenticate = (req, res, next) => {
 }
 
 
+//validate refresh token
+let verifySession = (req, res, next) => {
+    // grab the refresh token from the request header
+    let refreshToken = req.header('x-refresh-token');
+
+    console.log(req.header('_id'))
+    // grab the _id from the request header
+    let _id = req.header('_id');
+
+    User.findByIDandToken(_id, refreshToken).then((user) => {
+        if (!user) {
+            // user couldn't be found
+            return Promise.reject({
+                'error': 'User not found. Make sure that the refresh token and user id are correct'
+            });
+        }
+
+
+        // if the code reaches here - the user was found
+        // therefore the refresh token exists in the database - but we still have to check if it has expired or not
+
+        req.user_id = user._id;
+        req.userObject = user;
+        req.refreshToken = refreshToken;
+
+        console.log(user)
+
+        let isSessionValid = false;
+
+        user.sessions.forEach((session) => {
+            if (session.token === refreshToken) {
+                // check if the session has expired
+                if (User.hasRefreshTokenExpired(session.expiresAt) === false) {
+                    // refresh token has not expired
+                    isSessionValid = true;
+                }
+            }
+        });
+
+        if (isSessionValid) {
+            // the session is VALID - call next() to continue with processing this web request
+            next();
+        } else {
+            // the session is not valid
+            return Promise.reject({
+                'error': 'Refresh token has expired or the session is invalid'
+            })
+        }
+
+    }).catch((e) => {
+        res.status(401).send(e);
+    })
+}
+
+
 // List routes below
 
 // Get all lists
 app.get('/lists', authenticate, (req, res) => {
     List.find({
-        // _userId : req.user_id
+        _userId : req.user_id
     }).then((lists) => {
         if (lists == null) {
             res.send('The list is empty')
@@ -92,14 +148,12 @@ app.delete('/lists/:id', authenticate, (req, res) => {
 // Task routes below
 
 // Get the tasks
-app.get('/lists/:listid/tasks', (req, res) => {
+app.get('/lists/:listid/tasks', authenticate, (req, res) => {
     Task.find({
         _listID: req.params.listid
     }).then((theTasks) => {
         res.send(theTasks)
     }).catch((err) => {
-        console.log("The Get Task request didn't go throught !")
-        console.log(err)
         res.send(err)
         res.sendStatus(500)
     })
@@ -107,60 +161,99 @@ app.get('/lists/:listid/tasks', (req, res) => {
 
 
 // Create new task
-app.post('/lists/:listid/tasks', (req, res) => {
-    Task.create({
-        title: req.body.title,
-        _listID: req.params.listid
-    }).then((newTask) => {
-        console.log("--New task has been added to the List--");
-        console.log(newTask + "\n");
-        res.send(newTask)
-    }).catch((err) => {
-        console.log("The create new Task request didn't go throught !")
-        console.log(err)
-        res.send(err)
-        res.sendStatus(500)
+app.post('/lists/:listid/tasks', authenticate, (req, res) => {
+    //only user with the specific user id should be able to create task for 
+    
+    List.findOne({
+        _id : req.params.listid,
+        _userId : req.user_id
+    }).then((list)=>{
+        // if valid list is returned
+        if(list){
+            return true
+        }
+        else{
+            return false
+        }
+    }).then((booleanValueFromAbove)=>{
+        if(booleanValueFromAbove){
+            Task.create({
+                title: req.body.title,
+                _listID: req.params.listid
+            }).then((newTask) => {
+                res.send(newTask)
+            }).catch((err) => {
+                res.send(err)
+                res.sendStatus(500)
+            })
+        }else{
+            res.sendStatus(404)
+        }
     })
+
+   
 })
 
 
 // Update a task
-app.patch('/lists/:listid/tasks/:taskid', (req, res) => {
-    Task.findOneAndUpdate({
-        _id: req.params.taskid,
-        _listID: req.params.listid
-    }, {
-        $set: req.body
-    }).then(() => {
-        console.log("--Task has been updated--\n")
-        res.send({message : "Successfullly updated task"})
-    }).catch((err) => {
-        console.log("The update Task request didn't go throught !")
-        console.log(err)
-        res.send(err)
+app.patch('/lists/:listid/tasks/:taskid',authenticate, (req, res) => {
+    
+    List.findOne({
+        _id: req.params.listid,
+        _userId : req.user_id
+    }).then(list =>{
+        if(list){
+            return true
+        }
+        return false
+    }).then(canUpdateOrNot =>{
+        if(canUpdateOrNot){
+            Task.findOneAndUpdate({
+                _id: req.params.taskid,
+                _listID: req.params.listid
+            }, {
+                $set: req.body
+            }).then(() => {
+                res.send({message : "Successfullly updated task"})
+            }).catch((err) => {
+                res.send(err)
+            })
+        }else{
+            res.sendStatus(404)
+        }
     })
 })
 
 
 // Delete a Task 
-app.delete('/lists/:listid/tasks/:taskid', (req, res) => {
-    Task.findOneAndDelete({
-        _id: req.params.taskid,
-        _listID: req.params.listid
-    }).then((deletedTask) => {
-        if (deletedTask == null) {
-            console.log("--The task requested for deletion doesn't exist--")
-            res.send("Task doesn't exist or has been deleted")
-        } else {
-            console.log("--Below Task has been deleted--")
-            console.log(deletedTask)
-            res.send(deletedTask)
+app.delete('/lists/:listid/tasks/:taskid',authenticate, (req, res) => {
+    
+    List.findOne({
+        _id: req.params.listid,
+        _userId : req.user_id
+    }).then(list =>{
+        if(list){
+            return true
         }
-    }).catch((err) => {
-        console.log("The deletion of Task request didn't go throught !")
-        console.log(err)
-        res.send(err)
-        res.sendStatus(500)
+        return false
+    }).then(canDeleteOrNot =>{
+        if(canDeleteOrNot){
+            Task.findOneAndDelete({
+                _id: req.params.taskid,
+                _listID: req.params.listid
+            }).then((deletedTask) => {
+                if (deletedTask == null) {
+                    res.send("Task doesn't exist or has been deleted")
+                } else {
+                    res.send(deletedTask)
+                }
+            }).catch((err) => {
+                res.send(err)
+                res.sendStatus(500)
+            })
+        }else{
+            res.sendStatus(404)
+        }
     })
 })
 
@@ -215,8 +308,22 @@ app.post('/users/login', (req, res) => {
         })
     }).catch((e) => {
         res.status(400).send(e);
+        console.log(e)
     });
 })
+
+
+
+//returned generated access token
+app.get('/users/me/access-token', verifySession, (req, res) => {
+    // we know that the user/caller is authenticated and we have the user_id and user object available to us
+    req.userObject.generateAccessAuthToken().then((accessToken) => {
+        res.header('x-access-token', accessToken).send({ accessToken });
+    }).catch((e) => {
+        res.status(400).send(e);
+    });
+})
+
 
 
 // Helper method to delete all tasks from a specific list
