@@ -24,7 +24,7 @@ const UserSchema = mongoose.Schema({
             type : String,
             required : true 
         },
-        expriesAt : {
+        expiresAt : {
             type : Number,
             required : true
         }
@@ -48,7 +48,7 @@ UserSchema.methods.generateAccessAuthToken =function(){
     return new Promise((resolve, reject)=>{
         // Create a new JWT token and return it 
         
-        jwt.sign({ _id : user._id.toHexString() }, jwtSecret, {expiresIn : '15m'}, (err, token)=>{
+        jwt.sign({ _id : user._id.toHexString() }, jwtSecret, {expiresIn : '10s'}, (err, token)=>{
             if(!err) return resolve(token);
             else reject();
         })
@@ -161,7 +161,7 @@ function saveSessionToDatabase(user, refreshToken){
         let tokenExpiryTime = generateExpiryTime()
 
         //Data inserted to the instance of new User 
-        user.sessions.push({'token': refreshToken, 'expriesAt' : tokenExpiryTime});
+        user.sessions.push({'token': refreshToken, 'expiresAt' : tokenExpiryTime});
 
         //Saving the pushed data into database
         user.save().then(()=>{
@@ -177,9 +177,9 @@ function saveSessionToDatabase(user, refreshToken){
 
 
 function generateExpiryTime(){
-    let daysUntilExpiry = "10";
-    let secondsUntilExpiry = ((daysUntilExpiry *24)*60)*60;
-    return ((Date.now()/1000) + secondsUntilExpiry);
+    let daysUntilExpire = "10";
+    let secondsUntilExpire = ((daysUntilExpire * 24) * 60) * 60;
+    return ((Date.now() / 1000) + secondsUntilExpire);
 }
 
 

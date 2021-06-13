@@ -18,7 +18,7 @@ app.use(cors());
 app.use(function (req, res, next) {
     res.header(
         'Access-Control-Expose-Headers',
-        'x-access-token, x-refresh-token'
+        'x-access-token, x-refresh-token, _id'
     );
     next();
 });
@@ -43,8 +43,7 @@ let verifySession = (req, res, next) => {
     // grab the refresh token from the request header
     let refreshToken = req.header('x-refresh-token');
 
-    console.log(req.header('_id'))
-    // grab the _id from the request header
+    // grab the _id from the request header. This is the user's ID and not the session id
     let _id = req.header('_id');
 
     User.findByIDandToken(_id, refreshToken).then((user) => {
@@ -63,14 +62,14 @@ let verifySession = (req, res, next) => {
         req.userObject = user;
         req.refreshToken = refreshToken;
 
-        console.log(user)
-
         let isSessionValid = false;
 
         user.sessions.forEach((session) => {
-            if (session.token === refreshToken) {
+            if (session.token == refreshToken) {
                 // check if the session has expired
-                if (User.hasRefreshTokenExpired(session.expiresAt) === false) {
+                console.log("----------------------------New session----------------")
+                console.log(session)
+                if (User.hasRefreshTokenExpired(session.expiresAt) == false) {
                     // refresh token has not expired
                     isSessionValid = true;
                 }
